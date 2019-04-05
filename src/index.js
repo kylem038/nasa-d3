@@ -1,4 +1,5 @@
 import * as d3 from 'd3';
+import * as topojson from 'topojson';
 
 const endpoint = 'https://data.nasa.gov/resource/y77d-th95.json';
 
@@ -15,6 +16,7 @@ document.addEventListener("DOMContentLoaded", function (event) {
 const parseData = parsedData => {
     return parsedData.map(impactData => {
         return {
+            id: impactData.id,
             geolocation: impactData.geolocation,
             lat: impactData.reclat,
             long: impactData.reclong
@@ -27,9 +29,59 @@ const drawChart = parsedData => {
     console.log('draw chart');
     const svgWidth = 1200;
     const svgHeight = 800;
-    const margin = { top: 20, right: 20, bottom: 30, left: 50 };
-    const width = svgWidth - margin.left - margin.right;
-    const height = svgHeight - margin.top - margin.bottom;
 
-    const svg = d3.select('svg').attr('width', width).attr('height', height);
+    const path = d3.geoPath().projection(null);
+
+    // const zoom = d3.zoom()
+    //     .translateBy([0, 0])
+    //     .scale(1)
+    //     .scaleExtent([1, 8])
+    //     .on("zoom", zoomed);
+
+    const svg = d3.select('body').append('svg').attr('width', svgWidth).attr('height', svgHeight);
+    const features = svg.append('g');
+    svg.append('rect').attr('class', 'nasa-geo-map').attr('width', svgWidth).attr('height', svgHeight);
+
+    d3.json('https://d3js.org/us-10m.v1.json').then(
+        (us) => {
+            features.append("path")
+                .datum(topojson.feature(us, us.objects.states))
+                .attr("class", "state")
+                .attr("d", path);
+
+            features.append("path")
+                .datum(topojson.mesh(us, us.objects.states, function (a, b) { return a !== b; }))
+                .attr("class", "state-border")
+                .attr("d", path)
+                .style("stroke-width", "1.5px");
+
+            features.append("path")
+                .datum(topojson.mesh(us, us.objects.counties, function (a, b) { return a !== b && !(a.id / 1000 ^ b.id / 1000); }))
+                .attr("class", "county-border")
+                .attr("d", path)
+                .style("stroke-width", ".5px");
+        }
+    ).catch(error => console.error(error));
+
+    // d3.json("https://d3js.org/us-10m.v1.json", function (error, us) {
+    //     if (error) throw error;
+    //     console.log(us);
+
+    //     features.append("path")
+    //         .datum(topojson.feature(us, us.objects.states))
+    //         .attr("class", "state")
+    //         .attr("d", path);
+
+    //     features.append("path")
+    //         .datum(topojson.mesh(us, us.objects.states, function (a, b) { return a !== b; }))
+    //         .attr("class", "state-border")
+    //         .attr("d", path)
+    //         .style("stroke-width", "1.5px");
+
+    //     features.append("path")
+    //         .datum(topojson.mesh(us, us.objects.counties, function (a, b) { return a !== b && !(a.id / 1000 ^ b.id / 1000); }))
+    //         .attr("class", "county-border")
+    //         .attr("d", path)
+    //         .style("stroke-width", ".5px");
+    // });
 }

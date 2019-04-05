@@ -3049,6 +3049,15 @@
 
   var tsv = dsvFormat("\t");
 
+  function responseJson(response) {
+    if (!response.ok) throw new Error(response.status + " " + response.statusText);
+    return response.json();
+  }
+
+  function json(input, init) {
+    return fetch(input, init).then(responseJson);
+  }
+
   function tree_add(d) {
     var x = +this._x.call(null, d),
         y = +this._y.call(null, d);
@@ -3792,6 +3801,82 @@
   }
 
   var pi$3 = Math.PI;
+  var tau$1 = pi$3 * 2;
+
+  var abs = Math.abs;
+  var sqrt = Math.sqrt;
+
+  function noop$1() {}
+
+  function streamGeometry(geometry, stream) {
+    if (geometry && streamGeometryType.hasOwnProperty(geometry.type)) {
+      streamGeometryType[geometry.type](geometry, stream);
+    }
+  }
+
+  var streamObjectType = {
+    Feature: function(object, stream) {
+      streamGeometry(object.geometry, stream);
+    },
+    FeatureCollection: function(object, stream) {
+      var features = object.features, i = -1, n = features.length;
+      while (++i < n) streamGeometry(features[i].geometry, stream);
+    }
+  };
+
+  var streamGeometryType = {
+    Sphere: function(object, stream) {
+      stream.sphere();
+    },
+    Point: function(object, stream) {
+      object = object.coordinates;
+      stream.point(object[0], object[1], object[2]);
+    },
+    MultiPoint: function(object, stream) {
+      var coordinates = object.coordinates, i = -1, n = coordinates.length;
+      while (++i < n) object = coordinates[i], stream.point(object[0], object[1], object[2]);
+    },
+    LineString: function(object, stream) {
+      streamLine(object.coordinates, stream, 0);
+    },
+    MultiLineString: function(object, stream) {
+      var coordinates = object.coordinates, i = -1, n = coordinates.length;
+      while (++i < n) streamLine(coordinates[i], stream, 0);
+    },
+    Polygon: function(object, stream) {
+      streamPolygon(object.coordinates, stream);
+    },
+    MultiPolygon: function(object, stream) {
+      var coordinates = object.coordinates, i = -1, n = coordinates.length;
+      while (++i < n) streamPolygon(coordinates[i], stream);
+    },
+    GeometryCollection: function(object, stream) {
+      var geometries = object.geometries, i = -1, n = geometries.length;
+      while (++i < n) streamGeometry(geometries[i], stream);
+    }
+  };
+
+  function streamLine(coordinates, stream, closed) {
+    var i = -1, n = coordinates.length - closed, coordinate;
+    stream.lineStart();
+    while (++i < n) coordinate = coordinates[i], stream.point(coordinate[0], coordinate[1], coordinate[2]);
+    stream.lineEnd();
+  }
+
+  function streamPolygon(coordinates, stream) {
+    var i = -1, n = coordinates.length;
+    stream.polygonStart();
+    while (++i < n) streamLine(coordinates[i], stream, 1);
+    stream.polygonEnd();
+  }
+
+  function geoStream(object, stream) {
+    if (object && streamObjectType.hasOwnProperty(object.type)) {
+      streamObjectType[object.type](object, stream);
+    } else {
+      streamGeometry(object, stream);
+    }
+  }
 
   var areaRingSum = adder();
 
@@ -3803,10 +3888,372 @@
 
   var lengthSum = adder();
 
-  var areaSum$1 = adder(),
-      areaRingSum$1 = adder();
+  function identity$2(x) {
+    return x;
+  }
 
-  var lengthSum$1 = adder();
+  var areaSum$1 = adder(),
+      areaRingSum$1 = adder(),
+      x00,
+      y00,
+      x0,
+      y0;
+
+  var areaStream = {
+    point: noop$1,
+    lineStart: noop$1,
+    lineEnd: noop$1,
+    polygonStart: function() {
+      areaStream.lineStart = areaRingStart;
+      areaStream.lineEnd = areaRingEnd;
+    },
+    polygonEnd: function() {
+      areaStream.lineStart = areaStream.lineEnd = areaStream.point = noop$1;
+      areaSum$1.add(abs(areaRingSum$1));
+      areaRingSum$1.reset();
+    },
+    result: function() {
+      var area = areaSum$1 / 2;
+      areaSum$1.reset();
+      return area;
+    }
+  };
+
+  function areaRingStart() {
+    areaStream.point = areaPointFirst;
+  }
+
+  function areaPointFirst(x, y) {
+    areaStream.point = areaPoint;
+    x00 = x0 = x, y00 = y0 = y;
+  }
+
+  function areaPoint(x, y) {
+    areaRingSum$1.add(y0 * x - x0 * y);
+    x0 = x, y0 = y;
+  }
+
+  function areaRingEnd() {
+    areaPoint(x00, y00);
+  }
+
+  var x0$1 = Infinity,
+      y0$1 = x0$1,
+      x1 = -x0$1,
+      y1 = x1;
+
+  var boundsStream = {
+    point: boundsPoint,
+    lineStart: noop$1,
+    lineEnd: noop$1,
+    polygonStart: noop$1,
+    polygonEnd: noop$1,
+    result: function() {
+      var bounds = [[x0$1, y0$1], [x1, y1]];
+      x1 = y1 = -(y0$1 = x0$1 = Infinity);
+      return bounds;
+    }
+  };
+
+  function boundsPoint(x, y) {
+    if (x < x0$1) x0$1 = x;
+    if (x > x1) x1 = x;
+    if (y < y0$1) y0$1 = y;
+    if (y > y1) y1 = y;
+  }
+
+  // TODO Enforce positive area for exterior, negative area for interior?
+
+  var X0 = 0,
+      Y0 = 0,
+      Z0 = 0,
+      X1 = 0,
+      Y1 = 0,
+      Z1 = 0,
+      X2 = 0,
+      Y2 = 0,
+      Z2 = 0,
+      x00$1,
+      y00$1,
+      x0$2,
+      y0$2;
+
+  var centroidStream = {
+    point: centroidPoint,
+    lineStart: centroidLineStart,
+    lineEnd: centroidLineEnd,
+    polygonStart: function() {
+      centroidStream.lineStart = centroidRingStart;
+      centroidStream.lineEnd = centroidRingEnd;
+    },
+    polygonEnd: function() {
+      centroidStream.point = centroidPoint;
+      centroidStream.lineStart = centroidLineStart;
+      centroidStream.lineEnd = centroidLineEnd;
+    },
+    result: function() {
+      var centroid = Z2 ? [X2 / Z2, Y2 / Z2]
+          : Z1 ? [X1 / Z1, Y1 / Z1]
+          : Z0 ? [X0 / Z0, Y0 / Z0]
+          : [NaN, NaN];
+      X0 = Y0 = Z0 =
+      X1 = Y1 = Z1 =
+      X2 = Y2 = Z2 = 0;
+      return centroid;
+    }
+  };
+
+  function centroidPoint(x, y) {
+    X0 += x;
+    Y0 += y;
+    ++Z0;
+  }
+
+  function centroidLineStart() {
+    centroidStream.point = centroidPointFirstLine;
+  }
+
+  function centroidPointFirstLine(x, y) {
+    centroidStream.point = centroidPointLine;
+    centroidPoint(x0$2 = x, y0$2 = y);
+  }
+
+  function centroidPointLine(x, y) {
+    var dx = x - x0$2, dy = y - y0$2, z = sqrt(dx * dx + dy * dy);
+    X1 += z * (x0$2 + x) / 2;
+    Y1 += z * (y0$2 + y) / 2;
+    Z1 += z;
+    centroidPoint(x0$2 = x, y0$2 = y);
+  }
+
+  function centroidLineEnd() {
+    centroidStream.point = centroidPoint;
+  }
+
+  function centroidRingStart() {
+    centroidStream.point = centroidPointFirstRing;
+  }
+
+  function centroidRingEnd() {
+    centroidPointRing(x00$1, y00$1);
+  }
+
+  function centroidPointFirstRing(x, y) {
+    centroidStream.point = centroidPointRing;
+    centroidPoint(x00$1 = x0$2 = x, y00$1 = y0$2 = y);
+  }
+
+  function centroidPointRing(x, y) {
+    var dx = x - x0$2,
+        dy = y - y0$2,
+        z = sqrt(dx * dx + dy * dy);
+
+    X1 += z * (x0$2 + x) / 2;
+    Y1 += z * (y0$2 + y) / 2;
+    Z1 += z;
+
+    z = y0$2 * x - x0$2 * y;
+    X2 += z * (x0$2 + x);
+    Y2 += z * (y0$2 + y);
+    Z2 += z * 3;
+    centroidPoint(x0$2 = x, y0$2 = y);
+  }
+
+  function PathContext(context) {
+    this._context = context;
+  }
+
+  PathContext.prototype = {
+    _radius: 4.5,
+    pointRadius: function(_) {
+      return this._radius = _, this;
+    },
+    polygonStart: function() {
+      this._line = 0;
+    },
+    polygonEnd: function() {
+      this._line = NaN;
+    },
+    lineStart: function() {
+      this._point = 0;
+    },
+    lineEnd: function() {
+      if (this._line === 0) this._context.closePath();
+      this._point = NaN;
+    },
+    point: function(x, y) {
+      switch (this._point) {
+        case 0: {
+          this._context.moveTo(x, y);
+          this._point = 1;
+          break;
+        }
+        case 1: {
+          this._context.lineTo(x, y);
+          break;
+        }
+        default: {
+          this._context.moveTo(x + this._radius, y);
+          this._context.arc(x, y, this._radius, 0, tau$1);
+          break;
+        }
+      }
+    },
+    result: noop$1
+  };
+
+  var lengthSum$1 = adder(),
+      lengthRing,
+      x00$2,
+      y00$2,
+      x0$3,
+      y0$3;
+
+  var lengthStream = {
+    point: noop$1,
+    lineStart: function() {
+      lengthStream.point = lengthPointFirst;
+    },
+    lineEnd: function() {
+      if (lengthRing) lengthPoint(x00$2, y00$2);
+      lengthStream.point = noop$1;
+    },
+    polygonStart: function() {
+      lengthRing = true;
+    },
+    polygonEnd: function() {
+      lengthRing = null;
+    },
+    result: function() {
+      var length = +lengthSum$1;
+      lengthSum$1.reset();
+      return length;
+    }
+  };
+
+  function lengthPointFirst(x, y) {
+    lengthStream.point = lengthPoint;
+    x00$2 = x0$3 = x, y00$2 = y0$3 = y;
+  }
+
+  function lengthPoint(x, y) {
+    x0$3 -= x, y0$3 -= y;
+    lengthSum$1.add(sqrt(x0$3 * x0$3 + y0$3 * y0$3));
+    x0$3 = x, y0$3 = y;
+  }
+
+  function PathString() {
+    this._string = [];
+  }
+
+  PathString.prototype = {
+    _radius: 4.5,
+    _circle: circle(4.5),
+    pointRadius: function(_) {
+      if ((_ = +_) !== this._radius) this._radius = _, this._circle = null;
+      return this;
+    },
+    polygonStart: function() {
+      this._line = 0;
+    },
+    polygonEnd: function() {
+      this._line = NaN;
+    },
+    lineStart: function() {
+      this._point = 0;
+    },
+    lineEnd: function() {
+      if (this._line === 0) this._string.push("Z");
+      this._point = NaN;
+    },
+    point: function(x, y) {
+      switch (this._point) {
+        case 0: {
+          this._string.push("M", x, ",", y);
+          this._point = 1;
+          break;
+        }
+        case 1: {
+          this._string.push("L", x, ",", y);
+          break;
+        }
+        default: {
+          if (this._circle == null) this._circle = circle(this._radius);
+          this._string.push("M", x, ",", y, this._circle);
+          break;
+        }
+      }
+    },
+    result: function() {
+      if (this._string.length) {
+        var result = this._string.join("");
+        this._string = [];
+        return result;
+      } else {
+        return null;
+      }
+    }
+  };
+
+  function circle(radius) {
+    return "m0," + radius
+        + "a" + radius + "," + radius + " 0 1,1 0," + -2 * radius
+        + "a" + radius + "," + radius + " 0 1,1 0," + 2 * radius
+        + "z";
+  }
+
+  function index(projection, context) {
+    var pointRadius = 4.5,
+        projectionStream,
+        contextStream;
+
+    function path(object) {
+      if (object) {
+        if (typeof pointRadius === "function") contextStream.pointRadius(+pointRadius.apply(this, arguments));
+        geoStream(object, projectionStream(contextStream));
+      }
+      return contextStream.result();
+    }
+
+    path.area = function(object) {
+      geoStream(object, projectionStream(areaStream));
+      return areaStream.result();
+    };
+
+    path.measure = function(object) {
+      geoStream(object, projectionStream(lengthStream));
+      return lengthStream.result();
+    };
+
+    path.bounds = function(object) {
+      geoStream(object, projectionStream(boundsStream));
+      return boundsStream.result();
+    };
+
+    path.centroid = function(object) {
+      geoStream(object, projectionStream(centroidStream));
+      return centroidStream.result();
+    };
+
+    path.projection = function(_) {
+      return arguments.length ? (projectionStream = _ == null ? (projection = null, identity$2) : (projection = _).stream, path) : projection;
+    };
+
+    path.context = function(_) {
+      if (!arguments.length) return context;
+      contextStream = _ == null ? (context = null, new PathString) : new PathContext(context = _);
+      if (typeof pointRadius !== "function") contextStream.pointRadius(pointRadius);
+      return path;
+    };
+
+    path.pointRadius = function(_) {
+      if (!arguments.length) return pointRadius;
+      pointRadius = typeof _ === "function" ? _ : (contextStream.pointRadius(+_), +_);
+      return path;
+    };
+
+    return path.projection(projection).context(context);
+  }
 
   // Returns the 2D cross product of AB and AC vectors, i.e., the z-component of
 
@@ -5250,6 +5697,237 @@
     bezierCurveTo: function(x1, y1, x2, y2, x, y) { this._context.bezierCurveTo(y1, x1, y2, x2, y, x); }
   };
 
+  function identity$3(x) {
+    return x;
+  }
+
+  function transform(transform) {
+    if (transform == null) return identity$3;
+    var x0,
+        y0,
+        kx = transform.scale[0],
+        ky = transform.scale[1],
+        dx = transform.translate[0],
+        dy = transform.translate[1];
+    return function(input, i) {
+      if (!i) x0 = y0 = 0;
+      var j = 2, n = input.length, output = new Array(n);
+      output[0] = (x0 += input[0]) * kx + dx;
+      output[1] = (y0 += input[1]) * ky + dy;
+      while (j < n) output[j] = input[j], ++j;
+      return output;
+    };
+  }
+
+  function reverse(array, n) {
+    var t, j = array.length, i = j - n;
+    while (i < --j) t = array[i], array[i++] = array[j], array[j] = t;
+  }
+
+  function feature(topology, o) {
+    return o.type === "GeometryCollection"
+        ? {type: "FeatureCollection", features: o.geometries.map(function(o) { return feature$1(topology, o); })}
+        : feature$1(topology, o);
+  }
+
+  function feature$1(topology, o) {
+    var id = o.id,
+        bbox = o.bbox,
+        properties = o.properties == null ? {} : o.properties,
+        geometry = object(topology, o);
+    return id == null && bbox == null ? {type: "Feature", properties: properties, geometry: geometry}
+        : bbox == null ? {type: "Feature", id: id, properties: properties, geometry: geometry}
+        : {type: "Feature", id: id, bbox: bbox, properties: properties, geometry: geometry};
+  }
+
+  function object(topology, o) {
+    var transformPoint = transform(topology.transform),
+        arcs = topology.arcs;
+
+    function arc(i, points) {
+      if (points.length) points.pop();
+      for (var a = arcs[i < 0 ? ~i : i], k = 0, n = a.length; k < n; ++k) {
+        points.push(transformPoint(a[k], k));
+      }
+      if (i < 0) reverse(points, n);
+    }
+
+    function point(p) {
+      return transformPoint(p);
+    }
+
+    function line(arcs) {
+      var points = [];
+      for (var i = 0, n = arcs.length; i < n; ++i) arc(arcs[i], points);
+      if (points.length < 2) points.push(points[0]); // This should never happen per the specification.
+      return points;
+    }
+
+    function ring(arcs) {
+      var points = line(arcs);
+      while (points.length < 4) points.push(points[0]); // This may happen if an arc has only two points.
+      return points;
+    }
+
+    function polygon(arcs) {
+      return arcs.map(ring);
+    }
+
+    function geometry(o) {
+      var type = o.type, coordinates;
+      switch (type) {
+        case "GeometryCollection": return {type: type, geometries: o.geometries.map(geometry)};
+        case "Point": coordinates = point(o.coordinates); break;
+        case "MultiPoint": coordinates = o.coordinates.map(point); break;
+        case "LineString": coordinates = line(o.arcs); break;
+        case "MultiLineString": coordinates = o.arcs.map(line); break;
+        case "Polygon": coordinates = polygon(o.arcs); break;
+        case "MultiPolygon": coordinates = o.arcs.map(polygon); break;
+        default: return null;
+      }
+      return {type: type, coordinates: coordinates};
+    }
+
+    return geometry(o);
+  }
+
+  function stitch(topology, arcs) {
+    var stitchedArcs = {},
+        fragmentByStart = {},
+        fragmentByEnd = {},
+        fragments = [],
+        emptyIndex = -1;
+
+    // Stitch empty arcs first, since they may be subsumed by other arcs.
+    arcs.forEach(function(i, j) {
+      var arc = topology.arcs[i < 0 ? ~i : i], t;
+      if (arc.length < 3 && !arc[1][0] && !arc[1][1]) {
+        t = arcs[++emptyIndex], arcs[emptyIndex] = i, arcs[j] = t;
+      }
+    });
+
+    arcs.forEach(function(i) {
+      var e = ends(i),
+          start = e[0],
+          end = e[1],
+          f, g;
+
+      if (f = fragmentByEnd[start]) {
+        delete fragmentByEnd[f.end];
+        f.push(i);
+        f.end = end;
+        if (g = fragmentByStart[end]) {
+          delete fragmentByStart[g.start];
+          var fg = g === f ? f : f.concat(g);
+          fragmentByStart[fg.start = f.start] = fragmentByEnd[fg.end = g.end] = fg;
+        } else {
+          fragmentByStart[f.start] = fragmentByEnd[f.end] = f;
+        }
+      } else if (f = fragmentByStart[end]) {
+        delete fragmentByStart[f.start];
+        f.unshift(i);
+        f.start = start;
+        if (g = fragmentByEnd[start]) {
+          delete fragmentByEnd[g.end];
+          var gf = g === f ? f : g.concat(f);
+          fragmentByStart[gf.start = g.start] = fragmentByEnd[gf.end = f.end] = gf;
+        } else {
+          fragmentByStart[f.start] = fragmentByEnd[f.end] = f;
+        }
+      } else {
+        f = [i];
+        fragmentByStart[f.start = start] = fragmentByEnd[f.end = end] = f;
+      }
+    });
+
+    function ends(i) {
+      var arc = topology.arcs[i < 0 ? ~i : i], p0 = arc[0], p1;
+      if (topology.transform) p1 = [0, 0], arc.forEach(function(dp) { p1[0] += dp[0], p1[1] += dp[1]; });
+      else p1 = arc[arc.length - 1];
+      return i < 0 ? [p1, p0] : [p0, p1];
+    }
+
+    function flush(fragmentByEnd, fragmentByStart) {
+      for (var k in fragmentByEnd) {
+        var f = fragmentByEnd[k];
+        delete fragmentByStart[f.start];
+        delete f.start;
+        delete f.end;
+        f.forEach(function(i) { stitchedArcs[i < 0 ? ~i : i] = 1; });
+        fragments.push(f);
+      }
+    }
+
+    flush(fragmentByEnd, fragmentByStart);
+    flush(fragmentByStart, fragmentByEnd);
+    arcs.forEach(function(i) { if (!stitchedArcs[i < 0 ? ~i : i]) fragments.push([i]); });
+
+    return fragments;
+  }
+
+  function mesh(topology) {
+    return object(topology, meshArcs.apply(this, arguments));
+  }
+
+  function meshArcs(topology, object, filter) {
+    var arcs, i, n;
+    if (arguments.length > 1) arcs = extractArcs(topology, object, filter);
+    else for (i = 0, arcs = new Array(n = topology.arcs.length); i < n; ++i) arcs[i] = i;
+    return {type: "MultiLineString", arcs: stitch(topology, arcs)};
+  }
+
+  function extractArcs(topology, object, filter) {
+    var arcs = [],
+        geomsByArc = [],
+        geom;
+
+    function extract0(i) {
+      var j = i < 0 ? ~i : i;
+      (geomsByArc[j] || (geomsByArc[j] = [])).push({i: i, g: geom});
+    }
+
+    function extract1(arcs) {
+      arcs.forEach(extract0);
+    }
+
+    function extract2(arcs) {
+      arcs.forEach(extract1);
+    }
+
+    function extract3(arcs) {
+      arcs.forEach(extract2);
+    }
+
+    function geometry(o) {
+      switch (geom = o, o.type) {
+        case "GeometryCollection": o.geometries.forEach(geometry); break;
+        case "LineString": extract1(o.arcs); break;
+        case "MultiLineString": case "Polygon": extract2(o.arcs); break;
+        case "MultiPolygon": extract3(o.arcs); break;
+      }
+    }
+
+    geometry(object);
+
+    geomsByArc.forEach(filter == null
+        ? function(geoms) { arcs.push(geoms[0].i); }
+        : function(geoms) { if (filter(geoms[0].g, geoms[geoms.length - 1].g)) arcs.push(geoms[0].i); });
+
+    return arcs;
+  }
+
+  // Computes the bounding box of the specified hash of GeoJSON objects.
+
+  // TODO if quantized, use simpler Int32 hashing?
+
+  // Given an array of arcs in absolute (but already quantized!) coordinates,
+
+  // Extracts the lines and rings from the specified hash of geometry objects.
+
+  // Given a hash of GeoJSON objects, returns a hash of GeoJSON geometry objects.
+
+  var pi$5 = Math.PI;
+
   const endpoint = 'https://data.nasa.gov/resource/y77d-th95.json';
 
   document.addEventListener("DOMContentLoaded", function (event) {
@@ -5265,6 +5943,7 @@
   const parseData = parsedData => {
       return parsedData.map(impactData => {
           return {
+              id: impactData.id,
               geolocation: impactData.geolocation,
               lat: impactData.reclat,
               long: impactData.reclong
@@ -5277,11 +5956,61 @@
       console.log('draw chart');
       const svgWidth = 1200;
       const svgHeight = 800;
-      const margin = { top: 20, right: 20, bottom: 30, left: 50 };
-      const width = svgWidth - margin.left - margin.right;
-      const height = svgHeight - margin.top - margin.bottom;
 
-      const svg = select('svg').attr('width', width).attr('height', height);
+      const path = index().projection(null);
+
+      // const zoom = d3.zoom()
+      //     .translateBy([0, 0])
+      //     .scale(1)
+      //     .scaleExtent([1, 8])
+      //     .on("zoom", zoomed);
+
+      const svg = select('body').append('svg').attr('width', svgWidth).attr('height', svgHeight);
+      const features = svg.append('g');
+      svg.append('rect').attr('class', 'nasa-geo-map').attr('width', svgWidth).attr('height', svgHeight);
+
+      json('https://d3js.org/us-10m.v1.json').then(
+          (us) => {
+              features.append("path")
+                  .datum(feature(us, us.objects.states))
+                  .attr("class", "state")
+                  .attr("d", path);
+
+              features.append("path")
+                  .datum(mesh(us, us.objects.states, function (a, b) { return a !== b; }))
+                  .attr("class", "state-border")
+                  .attr("d", path)
+                  .style("stroke-width", "1.5px");
+
+              features.append("path")
+                  .datum(mesh(us, us.objects.counties, function (a, b) { return a !== b && !(a.id / 1000 ^ b.id / 1000); }))
+                  .attr("class", "county-border")
+                  .attr("d", path)
+                  .style("stroke-width", ".5px");
+          }
+      ).catch(error => console.error(error));
+
+      // d3.json("https://d3js.org/us-10m.v1.json", function (error, us) {
+      //     if (error) throw error;
+      //     console.log(us);
+
+      //     features.append("path")
+      //         .datum(topojson.feature(us, us.objects.states))
+      //         .attr("class", "state")
+      //         .attr("d", path);
+
+      //     features.append("path")
+      //         .datum(topojson.mesh(us, us.objects.states, function (a, b) { return a !== b; }))
+      //         .attr("class", "state-border")
+      //         .attr("d", path)
+      //         .style("stroke-width", "1.5px");
+
+      //     features.append("path")
+      //         .datum(topojson.mesh(us, us.objects.counties, function (a, b) { return a !== b && !(a.id / 1000 ^ b.id / 1000); }))
+      //         .attr("class", "county-border")
+      //         .attr("d", path)
+      //         .style("stroke-width", ".5px");
+      // });
   };
 
 }());

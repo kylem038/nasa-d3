@@ -3,6 +3,20 @@ html, body {
     padding: 0;
 }
 
-svg {
+.nasa-geo-map {
     margin-left: 200px;
+    fill: none;
+    pointer-events: all;
+}
+
+.state {
+    fill: #aaa;
+}
+
+.county-border,
+.state-border {
+    fill: none;
+    stroke: #fff;
+    stroke-linejoin: round;
+    stroke-linecap: round;
 }

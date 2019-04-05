@@ -10,7 +10,8 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "d3": "^5.9.2"
+    "d3": "^5.9.2",
+    "topojson": "^3.0.2"
   },
   "devDependencies": {
     "rollup-plugin-livereload": "^1.0.0",
