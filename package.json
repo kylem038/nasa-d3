@@ -2,15 +2,19 @@
   "name": "a",
   "version": "1.0.0",
   "description": "d3 practice",
+  "homepage": "https://kylem038.github.io/nasa-d3/",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "rollup -c --watch"
+    "start": "rollup -c --watch",
+    "predeploy": "rollup -c",
+    "deploy": "master -d dest"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
     "d3": "^5.9.2",
+    "gh-pages": "^2.0.1",
     "topojson": "^3.0.2"
   },
   "devDependencies": {
