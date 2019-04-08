@@ -118,6 +118,7 @@ const drawChart = parsedData => {
         if (isNaN(point.long) || isNaN(point.lat)) return;
         svg.append('svg:circle')
             .attr('r', 0.01)
+            .attr('class', 'point')
             .attr('transform', `translate(${projection([point.long, point.lat])})scale(${scale})`)
     });
 }

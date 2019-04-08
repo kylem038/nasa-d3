@@ -12,11 +12,15 @@ body {
 
 svg {
     border: 1px solid black;
-    background-color: white;
+    background-color: aliceblue;
 }
 
 .boundary {
     fill: lightgray;
     stroke: black;
     stroke-width: 1px; 
+}
+
+.point {
+    fill: red;
 }
