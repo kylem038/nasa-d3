@@ -65,7 +65,8 @@ const drawChart = parsedData => {
     }).call(zoom);
 
     const g = svg.append('g');
-
+    g.append('g').attr('class', 'boundary-container');
+    g.append('g').attr('class', 'points-container');
     function rotateMap(endX) {
         projection.rotate([rotated + (endX - initX) * 360 / (s * svgWidth), 0, 0]);
         g.selectAll('path').attr('d', path);
@@ -104,7 +105,7 @@ const drawChart = parsedData => {
 
     d3.json(worldJSON).then(
         (world) => {
-            g.append("g")
+            g.select('.boundary-container').append("g")
                 .attr("class", "boundary")
                 .selectAll("boundary")
                 .data(topojson.feature(world, world.objects.countries).features)
@@ -116,7 +117,7 @@ const drawChart = parsedData => {
     // Add points to the map with NASA data
     parsedData.forEach(point => {
         if (isNaN(point.long) || isNaN(point.lat)) return;
-        svg.append('svg:circle')
+        g.select('.points-container').append('svg:circle')
             .attr('r', 0.01)
             .attr('class', 'point')
             .attr('transform', `translate(${projection([point.long, point.lat])})scale(${scale})`)
