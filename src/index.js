@@ -30,6 +30,7 @@ const drawChart = parsedData => {
     // Set width and height of svg
     const svgWidth = 900;
     const svgHeight = 500;
+    const scale = 153;
 
     // Set initial variables for zooming / panning
     let initX;
@@ -41,7 +42,7 @@ const drawChart = parsedData => {
     let mouse;
 
     const projection = d3.geoMercator()
-        .scale(153)
+        .scale(scale)
         .translate([svgWidth / 2, svgHeight / 1.5]);
 
     const path = d3.geoPath().projection(projection);
@@ -111,4 +112,12 @@ const drawChart = parsedData => {
                 .attr("d", path);
         }
     ).catch(error => console.error(error));
+
+    // Add points to the map with NASA data
+    parsedData.forEach(point => {
+        if (isNaN(point.long) || isNaN(point.lat)) return;
+        svg.append('svg:circle')
+            .attr('r', 0.01)
+            .attr('transform', `translate(${projection([point.long, point.lat])})scale(${scale})`)
+    });
 }
