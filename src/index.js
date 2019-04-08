@@ -64,8 +64,6 @@ const drawChart = parsedData => {
     }).call(zoom);
 
     const g = svg.append('g');
-    // svg.append('rect').attr('class', 'nasa-geo-map').attr('width', svgWidth).attr('height', svgHeight).attr("transform", "translate(" + 20 + "," + 20 + ")")
-    //     .call(zoom);
 
     function rotateMap(endX) {
         projection.rotate([rotated + (endX - initX) * 360 / (s * svgWidth), 0, 0]);
@@ -83,7 +81,7 @@ const drawChart = parsedData => {
         // We want x to be the minimum value between the current zoom and the aspect ratio, the width * the zoom, or the current x
         t[0] = Math.min((svgWidth / svgHeight) * (s - 1), Math.max(svgWidth * (1 - s), t[0]));
 
-        // We want the y to be the min value of 
+        // We want the y to be the min value of 0, the height minus the aspect ratio, or current y
         t[1] = Math.min(h * (s - 1) + h * s, Math.max(svgHeight * (1 - s) - h * s, t[1]));
 
         g.attr('transform', `translate(${t})scale(${s})`);
@@ -113,6 +111,4 @@ const drawChart = parsedData => {
                 .attr("d", path);
         }
     ).catch(error => console.error(error));
-
-    // d3.select(self.frameElement).style("height", svgHeight + "px");
 }
