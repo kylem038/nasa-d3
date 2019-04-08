@@ -65,6 +65,7 @@ const drawChart = parsedData => {
     }).call(zoom);
 
     const g = svg.append('g');
+    // Need to append containers in this order or the dots sit behind the map
     g.append('g').attr('class', 'boundary-container');
     g.append('g').attr('class', 'points-container');
     function rotateMap(endX) {
@@ -88,6 +89,7 @@ const drawChart = parsedData => {
 
         g.attr('transform', `translate(${t})scale(${s})`);
         d3.selectAll(".boundary").style("stroke-width", 1 / s);
+        d3.selectAll('.point').attr('r', 0.01 / s);
 
         mouse = d3.mouse(this);
 
