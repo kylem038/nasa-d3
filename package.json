@@ -14,5 +14,7 @@
     "gh-pages": "^2.0.1",
     "topojson": "^3.0.2"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "cssnano": "^4.1.10"
+  }
 }
