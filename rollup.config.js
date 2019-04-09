@@ -9,9 +9,9 @@ export default {
         format: "iife"
     },
     plugins: [
+        resolve(),
         serve(),
-        livereload(),
-        resolve()
+        livereload()
     ],
     onwarn: function (warning, warn) {
         if (warning.code === 'CIRCULAR_DEPENDENCY') return;
