@@ -10,8 +10,8 @@ document.addEventListener("DOMContentLoaded", function (event) {
         .catch(function (err) { console.log(err); })
 });
 
-const parseData = parsedData => {
-    return parsedData.map(impactData => {
+const parseData = data => {
+    return data.map(impactData => {
         return {
             id: impactData.id,
             geolocation: impactData.geolocation,
@@ -55,10 +55,11 @@ const drawChart = parsedData => {
         // zoomend needs mouse coords
         initX = d3.mouse(this)[0];
     }).on('mousedown', function () {
-        // only if scale === 1
-        if (s !== 1) return;
-        initX = d3.mouse(this)[0];
-        mouseClicked = true;
+        if (s === 1) return;
+        if (s > 1) {
+            initX = d3.mouse(this)[0];
+            mouseClicked = true;
+        }
     }).call(zoom);
 
     const g = svg.append('g');
