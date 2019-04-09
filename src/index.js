@@ -1,6 +1,3 @@
-import * as d3 from 'd3';
-import * as topojson from 'topojson';
-
 const endpoint = 'https://data.nasa.gov/resource/y77d-th95.json';
 
 document.addEventListener("DOMContentLoaded", function (event) {
