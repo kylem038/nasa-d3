@@ -194,11 +194,6 @@ var drawChart = function drawChart(parsedData) {
     d3.selectAll(".boundary").style("stroke-width", 1 / s);
     d3.selectAll('.point').attr('r', 0.01 / s);
     mouse = d3.mouse(this);
-
-    if (s === 1 && mouseClicked) {
-      rotateMap(mouse[0]);
-      return;
-    }
   }
 
   function zoomended() {
@@ -246,7 +241,7 @@ var parent = module.bundle.parent;
 if ((!parent || !parent.isParcelRequire) && typeof WebSocket !== 'undefined') {
   var hostname = "" || location.hostname;
   var protocol = location.protocol === 'https:' ? 'wss' : 'ws';
-  var ws = new WebSocket(protocol + '://' + hostname + ':' + "55635" + '/');
+  var ws = new WebSocket(protocol + '://' + hostname + ':' + "64264" + '/');
 
   ws.onmessage = function (event) {
     checkedAssets = {};

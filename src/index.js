@@ -90,11 +90,6 @@ const drawChart = parsedData => {
         d3.selectAll('.point').attr('r', 0.01 / s);
 
         mouse = d3.mouse(this);
-
-        if (s === 1 && mouseClicked) {
-            rotateMap(mouse[0]);
-            return;
-        }
     }
 
     function zoomended() {
